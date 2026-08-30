@@ -24,6 +24,7 @@
  --tv:#2563c4; --nt:#15803d;
  --sh:0 1px 2px rgba(29,26,34,.06);
  --pre:#7c3aed; --prebg:#faf7ff; --nbg:rgba(124,58,237,.12); --nfg:#6d28d9;
+ --goc:#d97706; --gobg:#fffaf0;
 }
 :root[data-theme="dark"]{
  --bg:#0e1116; --panel:#161b22; --panel2:#1c2230; --line:#2a3240;
@@ -36,6 +37,7 @@
  --tv:#7fb3ff; --nt:#4ac26b;
  --sh:none;
  --pre:#b794f6; --prebg:#1a1826; --nbg:rgba(183,148,246,.16); --nfg:#b794f6;
+ --goc:#fbbf24; --gobg:#241d10;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
@@ -97,6 +99,12 @@ main{max-width:760px;margin:0 auto;
 .pre{font-size:10px;font-weight:700;margin-bottom:2px;color:var(--pre)}
 .g.pregame{background:var(--prebg)}
 .ha.N{background:var(--nbg);color:var(--nfg)}
+.go{flex:0 0 auto;width:34px;height:34px;margin-left:2px;border:0;background:none;
+ color:var(--dim);font-size:19px;line-height:1;cursor:pointer;border-radius:50%;
+ display:flex;align-items:center;justify-content:center;padding:0}
+.go.on{color:var(--goc)}
+.g.going{border-color:var(--goc);background:var(--gobg)}
+.g.going .dt b{color:var(--goc)}
 .jp .tv{font-size:11px;color:var(--tv);margin-top:2px}
 .jp .nt{font-size:11px;color:var(--nt);margin-top:2px}
 .note{font-size:11px;color:var(--dim);line-height:1.7;margin-top:26px;
@@ -113,6 +121,7 @@ main{max-width:760px;margin:0 auto;
   <span class="chip" data-f="AWAY">アウェー</span>
   <span class="chip" data-f="future">これから</span>
   <span class="chip" data-f="pre">プレ</span>
+  <span class="chip" data-f="going">★行く</span>
   <span class="count" id="count"></span>
 </div>
 </div></header>
@@ -135,6 +144,16 @@ const JP=[{"d": "2026-08-27", "w": "木", "cat": "W杯予選 Window4", "opp": "�
     apply(next); try{localStorage.setItem('theme',next);}catch(e){}
   };
 })();
+const GOKEY='going';
+let GOING;
+try{ const raw=localStorage.getItem(GOKEY); GOING=new Set(raw?JSON.parse(raw):null); }catch(e){ GOING=new Set(); }
+if(GOING.size===0){
+  let first=false; try{ first = localStorage.getItem(GOKEY)===null; }catch(e){}
+  if(first){ GOING=new Set(['アルバルク東京|2026-09-02|横浜EX','アルバルク東京|2026-09-13|越谷']); saveGoing(); }
+}
+function saveGoing(){ try{ localStorage.setItem(GOKEY, JSON.stringify([...GOING])); }catch(e){} }
+function gkey(g){ return cur+'|'+g.d+'|'+g.opp; }
+
 const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 let cur = "アルバルク東京", filt = "all";
 const keys = Object.keys(DATA);
@@ -165,7 +184,9 @@ function row(g, isJP){
   const dt = dObj(g.d), past = dt < TODAY;
   const diff = Math.round((dt-TODAY)/86400000);
   const wc = g.w==='土'?' sat':(g.w==='日'?' sun':'');
-  const cls = 'g'+(past?' past':'')+(!past&&diff<=7?' soon':'')+(isJP?' jp':'')+(g.k==='pre'?' pregame':'');
+  const going = GOING.has(gkey(g));
+  const cls = 'g'+(past?' past':'')+(!past&&diff<=7?' soon':'')+(isJP?' jp':'')
+    +(g.k==='pre'?' pregame':'')+(going?' going':'');
   const [,mm,dd] = g.d.split('-');
   return `<div class="${cls}">
     <div class="dt${wc}"><b>${Number(mm)}/${Number(dd)}</b><i>${g.w}</i></div>
@@ -180,7 +201,10 @@ function row(g, isJP){
     <div class="rt">
       <span class="ha ${g.ha==='HOME'?'H':(g.ha==='中立'?'N':'A')}">${g.ha==='HOME'?'H':(g.ha==='中立'?'中立':'A')}</span>
       <div class="tm">${esc(g.t)||'時刻未定'}</div>
-    </div></div>`;
+    </div>
+    <button class="go${going?' on':''}" type="button" data-k="${esc(gkey(g))}"
+      aria-pressed="${going}" aria-label="行く試合にする">${going?'★':'☆'}</button>
+    </div>`;
 }
 
 function render(){
@@ -189,6 +213,7 @@ function render(){
   if(filt==='HOME'||filt==='AWAY') games = games.filter(g=>g.ha===filt);
   if(filt==='future') games = games.filter(g=>dObj(g.d)>=TODAY);
   if(filt==='pre') games = games.filter(g=>g.k==='pre');
+  if(filt==='going') games = games.filter(g=>GOING.has(gkey(g)));
   document.getElementById('count').textContent = games.length+"試合";
 
   const upcoming = (isJP?JP:DATA[cur].games).filter(g=>dObj(g.d)>=TODAY)[0];
@@ -211,12 +236,20 @@ function render(){
     ・B.PREMIER 全試合 → <b>DAZN</b>（2025-26から3シーズン契約、2026-27はB.PREMIER／B.ONE全試合）<br>
     ・日本代表（FIBA主催のW杯予選）→ 地上波＋<b>DAZN・TVer</b>、アウェー戦はABEMAも<br>
     ・アジア競技大会（愛知・名古屋）→ <b>TBS系</b>が国内放送権<br><br>
-    開幕前のプレシーズンゲームは紫のタグ付きで表示（リーグ公式の日程には載らないため、各クラブ公式の発表から収録）。ホームでもアウェーでもない中立地開催は「中立」バッジ。<br>\n    「時刻未定」はリーグ公式でティップオフ時刻が未発表の試合（主にアウェー戦）。
+    各試合の右端の☆を押すと「行く試合」として印が付き、この端末に記憶されます（絞り込みの「★行く」で一覧表示）。<br>\n    開幕前のプレシーズンゲームは紫のタグ付きで表示（リーグ公式の日程には載らないため、各クラブ公式の発表から収録）。ホームでもアウェーでもない中立地開催は「中立」バッジ。<br>\n    「時刻未定」はリーグ公式でティップオフ時刻が未発表の試合（主にアウェー戦）。
     シーズン中に確定していくので、B.LEAGUE公式の日程ページで再確認を。<br>
     データ取得日：2026年8月30日／出典：B.LEAGUE公式・各クラブ公式・JBA公式</div>`;
   document.getElementById('main').innerHTML = html;
   window.scrollTo(0,0);
 }
+document.getElementById('main').addEventListener('click', function(e){
+  const b = e.target.closest('.go');
+  if(!b) return;
+  const k = b.dataset.k;
+  if(GOING.has(k)) GOING.delete(k); else GOING.add(k);
+  saveGoing(); render();
+});
+
 mkTabs(); render();
 </script>
 </body>

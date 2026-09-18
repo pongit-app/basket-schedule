@@ -1,0 +1,34 @@
+name: 試合結果の自動更新
+
+on:
+  schedule:
+    # 日本時間 17:30 / 22:30 / 0:30（デイゲームとナイトゲームの終了後）
+    - cron: "30 8 * * *"
+    - cron: "30 13 * * *"
+    - cron: "30 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 結果を取得して反映
+        id: run
+        run: |
+          python3 update_results.py . | tee result.txt
+          echo "summary<<EOF" >> "$GITHUB_OUTPUT"; cat result.txt >> "$GITHUB_OUTPUT"; echo "EOF" >> "$GITHUB_OUTPUT"
+      - name: 変更があればコミット
+        run: |
+          if git diff --quiet index.html; then echo "変更なし"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "試合結果を自動更新" -m "$(tail -n +2 result.txt)"
+          git push

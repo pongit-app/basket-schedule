@@ -70,6 +70,14 @@ for name, c in CONF["clubs"].items():
                 g["sc"], g["r"] = sc, r
                 g.setdefault("rn", "")
 
+# 終了しているのにスコアが入っていない試合を報告（B.LEAGUE公式が配信しないことがある）
+cutoff = (datetime.now(timezone(timedelta(hours=9))) - timedelta(days=1)).strftime("%Y-%m-%d")
+pending = [f'{DATA[n]["short"]} {g["d"]} vs {g["opp"]}'
+           for n in CONF["clubs"] if n in DATA
+           for g in DATA[n]["games"] if g["d"] <= cutoff and not g.get("sc")]
+if pending:
+    print("【結果待ち（要手動確認）】" + " / ".join(pending))
+
 if not changes:
     print("変更なし"); sys.exit(0)
 html = html[:m.start(1)] + json.dumps(DATA, ensure_ascii=False) + html[m.end(1):]
